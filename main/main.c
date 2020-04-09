@@ -30,6 +30,8 @@ SOFTWARE.
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
+#include <mipi_dcs.h>
+#include <mipi_display.h>
 
 #include "esp_i2c_hal.h"
 #include "axp192.h"
@@ -37,7 +39,11 @@ SOFTWARE.
 #include "sdkconfig.h"
 
 static const char *TAG = "main";
+static uint8_t *buffer;
+
 bm8563_datetime_t rtc;
+uint32_t buffer_size = (DISPLAY_WIDTH * (DISPLAY_DEPTH / 8) * DISPLAY_HEIGHT);
+spi_device_handle_t spi;
 
 void demo_task(void *params)
 {
@@ -82,6 +88,29 @@ void demo_task(void *params)
     vTaskDelete(NULL);
 }
 
+void blit_task(void *params)
+{
+    int16_t x0, y0;
+    uint16_t color, *ptr;
+
+    while (1) {
+        color = esp_random() % 0xffff;
+        x0 = esp_random() % (DISPLAY_WIDTH - 16);
+        y0 = esp_random() % (DISPLAY_HEIGHT - 16);
+
+        ptr = (uint16_t *) buffer;
+
+        for (uint16_t i = 0; i < (16 * 16); i++) {
+            *(ptr++) = color;
+        }
+
+        mipi_display_write(spi, x0, y0, 16, 16, buffer);
+        vTaskDelay(500 / portTICK_RATE_MS);
+    }
+
+    vTaskDelete(NULL);
+}
+
 void app_main()
 {
     ESP_LOGI(TAG, "SDK version: %s", esp_get_idf_version());
@@ -105,7 +134,18 @@ void app_main()
     bm8563_init(i2c_hal_master_read, i2c_hal_master_write);
     bm8563_write(&rtc);
 
+    ESP_LOGD(TAG, "Initializing MIPI display");
+    mipi_display_init(&spi);
+    buffer = (uint8_t *) heap_caps_malloc(
+        buffer_size,
+        MALLOC_CAP_DMA | MALLOC_CAP_32BIT
+    );
+    memset(buffer, 0x00, buffer_size);
+    mipi_display_write(spi, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, buffer);
+
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
     xTaskCreatePinnedToCore(demo_task, "Demo", 4096, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(blit_task, "Blit", 4096, NULL, 1, NULL, 1);
+
 }
