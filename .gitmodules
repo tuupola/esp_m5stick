@@ -1,0 +1,9 @@
+[submodule "components/axp192"]
+	path = components/axp192
+	url = git@github.com:tuupola/axp192.git
+[submodule "components/bm8563"]
+	path = components/bm8563
+	url = git@github.com:tuupola/bm8563.git
+[submodule "components/esp_i2c_hal"]
+	path = components/esp_i2c_hal
+	url = git@github.com:tuupola/esp_i2c_hal.git
