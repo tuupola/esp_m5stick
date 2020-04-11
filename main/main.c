@@ -51,11 +51,11 @@ spi_device_handle_t spi;
 
 /*
 
-Cap framebuffer to 45fps.
+Cap refresh rate to 45fps.
 T = 1000 / 45 / (1000 / CONFIG_FREERTOS_HZ)
 
 */
-void framebuffer_task(void *params)
+void backbuffer_task(void *params)
 {
     TickType_t last;
     const TickType_t period = 1000 / 45 / portTICK_RATE_MS;
@@ -66,26 +66,6 @@ void framebuffer_task(void *params)
         pod_flush();
         fb_fps = fps();
         vTaskDelayUntil(&last, period);
-    }
-
-    vTaskDelete(NULL);
-}
-
-/*
-
-Update fps counter on top left corner every 1 second.
-
-*/
-void fps_task(void *params)
-{
-    uint16_t color = rgb565(0, 255, 0);
-    char message[128];
-
-    while (1) {
-        sprintf(message, "%.*f fps", 1, fb_fps);
-        pod_put_text(message, 4, 5, color, font8x8);
-
-        vTaskDelay(1000 / portTICK_RATE_MS);
     }
 
     vTaskDelete(NULL);
@@ -103,14 +83,14 @@ void rtc_task(void *params)
             "%04d-%02d-%02d",
             rtc.year, rtc.month, rtc.day
         );
-        pod_put_text(message, 40, 30, color, font8x8);
+        pod_put_text(message, 40, 28, color, font8x8);
 
         sprintf(
             message,
             "%02d:%02d:%02d",
             rtc.hours, rtc.minutes, rtc.seconds
         );
-        pod_put_text(message, 48, 40, color, font8x8);
+        pod_put_text(message, 48, 38, color, font8x8);
 
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
@@ -118,7 +98,7 @@ void rtc_task(void *params)
     vTaskDelete(NULL);
 }
 
-void demo_task(void *params)
+void log_task(void *params)
 {
     float vacin, iacin, vvbus, ivbus, vts, temp, pbat, vbat, icharge, idischarge, vaps, cbat;
     uint8_t power, charge;
@@ -150,7 +130,14 @@ void demo_task(void *params)
             "power: 0x%02x charge: 0x%02x",
             power, charge
         );
-        vTaskDelay(1000 / portTICK_RATE_MS);
+
+        ESP_LOGI(TAG,
+            "RTC: %04d-%02d-%02d %02d:%02d:%02d",
+            rtc.year, rtc.month, rtc.day, rtc.hours, rtc.minutes, rtc.seconds
+        );
+        vTaskDelay(5000 / portTICK_RATE_MS);
+
+        ESP_LOGI(TAG, "fps: %.1f", fb_fps);
     }
     vTaskDelete(NULL);
 }
@@ -184,6 +171,6 @@ void app_main()
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
     xTaskCreatePinnedToCore(rtc_task, "RTC", 2048, NULL, 1, NULL, 1);
-    //xTaskCreatePinnedToCore(fps_task, "FPS", 2048, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(framebuffer_task, "Framebuffer", 8192, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(log_task, "Log", 2048, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(backbuffer_task, "Backbuffer", 8192, NULL, 1, NULL, 0);
 }
