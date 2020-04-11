@@ -32,6 +32,11 @@ SOFTWARE.
 #include <esp_log.h>
 #include <mipi_dcs.h>
 #include <mipi_display.h>
+#include <copepod.h>
+#include <copepod_hal.h>
+#include <fps.h>
+#include <font8x8.h>
+#include <rgb565.h>
 
 #include "esp_i2c_hal.h"
 #include "axp192.h"
@@ -39,11 +44,52 @@ SOFTWARE.
 #include "sdkconfig.h"
 
 static const char *TAG = "main";
-static uint8_t *buffer;
+static float fb_fps;
 
 bm8563_datetime_t rtc;
-uint32_t buffer_size = (DISPLAY_WIDTH * (DISPLAY_DEPTH / 8) * DISPLAY_HEIGHT);
 spi_device_handle_t spi;
+
+/*
+
+Cap framebuffer to 45fps.
+T = 1000 / 45 / (1000 / CONFIG_FREERTOS_HZ)
+
+*/
+void framebuffer_task(void *params)
+{
+    TickType_t last;
+    const TickType_t period = 1000 / 45 / portTICK_RATE_MS;
+
+    last = xTaskGetTickCount();
+
+    while (1) {
+        pod_flush();
+        fb_fps = fps();
+        vTaskDelayUntil(&last, period);
+    }
+
+    vTaskDelete(NULL);
+}
+
+/*
+
+Update fps counter on top left corner every 1 second.
+
+*/
+void fps_task(void *params)
+{
+    uint16_t color = rgb565(0, 255, 0);
+    char message[128];
+
+    while (1) {
+        sprintf(message, "%.*f fps", 1, fb_fps);
+        pod_put_text(message, 6, 6, color, font8x8);
+
+        vTaskDelay(1000 / portTICK_RATE_MS);
+    }
+
+    vTaskDelete(NULL);
+}
 
 void demo_task(void *params)
 {
@@ -88,29 +134,6 @@ void demo_task(void *params)
     vTaskDelete(NULL);
 }
 
-void blit_task(void *params)
-{
-    int16_t x0, y0;
-    uint16_t color, *ptr;
-
-    while (1) {
-        color = esp_random() % 0xffff;
-        x0 = esp_random() % (DISPLAY_WIDTH - 16);
-        y0 = esp_random() % (DISPLAY_HEIGHT - 16);
-
-        ptr = (uint16_t *) buffer;
-
-        for (uint16_t i = 0; i < (16 * 16); i++) {
-            *(ptr++) = color;
-        }
-
-        mipi_display_write(spi, x0, y0, 16, 16, buffer);
-        vTaskDelay(500 / portTICK_RATE_MS);
-    }
-
-    vTaskDelete(NULL);
-}
-
 void app_main()
 {
     ESP_LOGI(TAG, "SDK version: %s", esp_get_idf_version());
@@ -134,18 +157,12 @@ void app_main()
     bm8563_init(i2c_hal_master_read, i2c_hal_master_write);
     bm8563_write(&rtc);
 
-    ESP_LOGD(TAG, "Initializing MIPI display");
-    mipi_display_init(&spi);
-    buffer = (uint8_t *) heap_caps_malloc(
-        buffer_size,
-        MALLOC_CAP_DMA | MALLOC_CAP_32BIT
-    );
-    memset(buffer, 0x00, buffer_size);
-    mipi_display_write(spi, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, buffer);
+    ESP_LOGD(TAG, "Initializing display");
+    pod_init();
 
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
     xTaskCreatePinnedToCore(demo_task, "Demo", 4096, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(blit_task, "Blit", 4096, NULL, 1, NULL, 1);
-
+    xTaskCreatePinnedToCore(fps_task, "FPS", 8192, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(framebuffer_task, "Framebuffer", 8192, NULL, 1, NULL, 0);
 }
