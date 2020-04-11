@@ -83,7 +83,34 @@ void fps_task(void *params)
 
     while (1) {
         sprintf(message, "%.*f fps", 1, fb_fps);
-        pod_put_text(message, 6, 6, color, font8x8);
+        pod_put_text(message, 4, 5, color, font8x8);
+
+        vTaskDelay(1000 / portTICK_RATE_MS);
+    }
+
+    vTaskDelete(NULL);
+}
+
+void rtc_task(void *params)
+{
+    uint16_t color = rgb565(0, 255, 0);
+    char message[128];
+
+    while (1) {
+        bm8563_read(&rtc);
+        sprintf(
+            message,
+            "%04d-%02d-%02d",
+            rtc.year, rtc.month, rtc.day
+        );
+        pod_put_text(message, 40, 30, color, font8x8);
+
+        sprintf(
+            message,
+            "%02d:%02d:%02d",
+            rtc.hours, rtc.minutes, rtc.seconds
+        );
+        pod_put_text(message, 48, 40, color, font8x8);
 
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
@@ -97,12 +124,6 @@ void demo_task(void *params)
     uint8_t power, charge;
 
     while (1) {
-        bm8563_read(&rtc);
-        ESP_LOGI(TAG,
-            "RTC: %04d-%02d-%02d %02d:%02d:%02d",
-            rtc.year, rtc.month, rtc.day, rtc.hours, rtc.minutes, rtc.seconds
-        );
-
         axp192_read(AXP192_ACIN_VOLTAGE, &vacin);
         axp192_read(AXP192_ACIN_CURRENT, &iacin);
         axp192_read(AXP192_VBUS_VOLTAGE, &vvbus);
@@ -162,7 +183,7 @@ void app_main()
 
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
-    xTaskCreatePinnedToCore(demo_task, "Demo", 4096, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(fps_task, "FPS", 8192, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(rtc_task, "RTC", 2048, NULL, 1, NULL, 1);
+    //xTaskCreatePinnedToCore(fps_task, "FPS", 2048, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(framebuffer_task, "Framebuffer", 8192, NULL, 1, NULL, 0);
 }
