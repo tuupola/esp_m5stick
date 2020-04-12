@@ -38,7 +38,7 @@ SOFTWARE.
 #include <font8x8.h>
 #include <rgb565.h>
 
-#include "esp_i2c_hal.h"
+#include "i2c_helper.h"
 #include "axp192.h"
 #include "bm8563.h"
 #include "sdkconfig.h"
@@ -154,15 +154,15 @@ void app_main()
     rtc.minutes = 59;
     rtc.seconds = 45;
 
-    i2c_hal_master_init();
+    i2c_init();
 
     ESP_LOGD(TAG, "Initializing AXP192");
-    axp192_init(i2c_hal_master_read, i2c_hal_master_write);
+    axp192_init(i2c_read, i2c_write);
     axp192_ioctl(AXP192_COULOMB_COUNTER_ENABLE, NULL);
     axp192_ioctl(AXP192_COULOMB_COUNTER_CLEAR, NULL);
 
     ESP_LOGD(TAG, "Initializing BM8563");
-    bm8563_init(i2c_hal_master_read, i2c_hal_master_write);
+    bm8563_init(i2c_read, i2c_write);
     bm8563_write(&rtc);
 
     ESP_LOGD(TAG, "Initializing display");
@@ -171,6 +171,6 @@ void app_main()
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
     xTaskCreatePinnedToCore(rtc_task, "RTC", 2048, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(log_task, "Log", 2048, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(log_task, "Log", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(backbuffer_task, "Backbuffer", 8192, NULL, 1, NULL, 0);
 }
