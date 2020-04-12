@@ -37,10 +37,12 @@ SOFTWARE.
 #include <fps.h>
 #include <font8x8.h>
 #include <rgb565.h>
+#include <i2c_helper.h>
+#include <axp192.h>
+#include <bm8563.h>
 
-#include "i2c_helper.h"
-#include "axp192.h"
-#include "bm8563.h"
+#include "helpers/wifi.h"
+#include "helpers/nvs.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "main";
@@ -154,19 +156,26 @@ void app_main()
     rtc.minutes = 59;
     rtc.seconds = 45;
 
+    ESP_LOGI(TAG, "Initializing I2C");
     i2c_init();
 
-    ESP_LOGD(TAG, "Initializing AXP192");
+    ESP_LOGI(TAG, "Initializing AXP192");
     axp192_init(i2c_read, i2c_write);
     axp192_ioctl(AXP192_COULOMB_COUNTER_ENABLE, NULL);
     axp192_ioctl(AXP192_COULOMB_COUNTER_CLEAR, NULL);
 
-    ESP_LOGD(TAG, "Initializing BM8563");
+    ESP_LOGI(TAG, "Initializing BM8563");
     bm8563_init(i2c_read, i2c_write);
     bm8563_write(&rtc);
 
-    ESP_LOGD(TAG, "Initializing display");
+    ESP_LOGI(TAG, "Initializing display");
     pod_init();
+
+    ESP_LOGI(TAG, "Initializing non volatile storage");
+    nvs_init();
+
+    ESP_LOGI(TAG, "Initializing wifi");
+    wifi_init();
 
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
