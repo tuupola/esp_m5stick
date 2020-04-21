@@ -50,7 +50,7 @@ static float fb_fps;
 
 bm8563_t bm;
 axp192_t axp;
-bm8563_datetime_t rtc;
+struct tm rtc = {0};
 spi_device_handle_t spi;
 
 /*
@@ -80,19 +80,22 @@ void rtc_task(void *params)
     uint16_t color = rgb565(0, 255, 0);
     char message[128];
 
+    /* Calculate tm_yday for the first run. */
+    mktime(&rtc);
+
     while (1) {
         bm8563_read(&bm, &rtc);
         sprintf(
             message,
             "%04d-%02d-%02d",
-            rtc.year, rtc.month, rtc.day
+            rtc.tm_year + 1900, rtc.tm_mon + 1, rtc.tm_mday
         );
         pod_put_text(message, 40, 28, color, font8x8);
 
         sprintf(
             message,
             "%02d:%02d:%02d",
-            rtc.hours, rtc.minutes, rtc.seconds
+            rtc.tm_hour, rtc.tm_min, rtc.tm_sec
         );
         pod_put_text(message, 48, 38, color, font8x8);
 
@@ -106,6 +109,7 @@ void log_task(void *params)
 {
     float vacin, iacin, vvbus, ivbus, vts, temp, pbat, vbat, icharge, idischarge, vaps, cbat;
     uint8_t power, charge;
+    char buffer[128];
 
     while (1) {
         axp192_read(&axp, AXP192_ACIN_VOLTAGE, &vacin);
@@ -135,10 +139,9 @@ void log_task(void *params)
             power, charge
         );
 
-        ESP_LOGI(TAG,
-            "RTC: %04d-%02d-%02d %02d:%02d:%02d",
-            rtc.year, rtc.month, rtc.day, rtc.hours, rtc.minutes, rtc.seconds
-        );
+        strftime(buffer, 128 ,"%c (day %j)" , &rtc);
+        ESP_LOGI(TAG, "RTC: %s", buffer);
+
         vTaskDelay(5000 / portTICK_RATE_MS);
 
         ESP_LOGI(TAG, "fps: %.1f", fb_fps);
@@ -151,12 +154,12 @@ void app_main()
     ESP_LOGI(TAG, "SDK version: %s", esp_get_idf_version());
     ESP_LOGI(TAG, "Heap when starting: %d", esp_get_free_heap_size());
 
-    rtc.year = 2020;
-    rtc.month = 12;
-    rtc.day = 31;
-    rtc.hours = 23;
-    rtc.minutes = 59;
-    rtc.seconds = 45;
+    rtc.tm_year = 2020 - 1900;
+    rtc.tm_mon = 12 - 1;
+    rtc.tm_mday = 31;
+    rtc.tm_hour = 23;
+    rtc.tm_min = 59;
+    rtc.tm_sec = 45;
 
     ESP_LOGI(TAG, "Initializing I2C");
     i2c_init();
