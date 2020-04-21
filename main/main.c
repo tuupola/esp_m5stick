@@ -48,6 +48,8 @@ SOFTWARE.
 static const char *TAG = "main";
 static float fb_fps;
 
+bm8563_t bm;
+axp192_t axp;
 bm8563_datetime_t rtc;
 spi_device_handle_t spi;
 
@@ -79,7 +81,7 @@ void rtc_task(void *params)
     char message[128];
 
     while (1) {
-        bm8563_read(&rtc);
+        bm8563_read(&bm, &rtc);
         sprintf(
             message,
             "%04d-%02d-%02d",
@@ -106,18 +108,18 @@ void log_task(void *params)
     uint8_t power, charge;
 
     while (1) {
-        axp192_read(AXP192_ACIN_VOLTAGE, &vacin);
-        axp192_read(AXP192_ACIN_CURRENT, &iacin);
-        axp192_read(AXP192_VBUS_VOLTAGE, &vvbus);
-        axp192_read(AXP192_VBUS_CURRENT, &ivbus);
-        axp192_read(AXP192_TEMP, &temp);
-        axp192_read(AXP192_TS_INPUT, &vts);
-        axp192_read(AXP192_BATTERY_POWER, &pbat);
-        axp192_read(AXP192_BATTERY_VOLTAGE, &vbat);
-        axp192_read(AXP192_CHARGE_CURRENT, &icharge);
-        axp192_read(AXP192_DISCHARGE_CURRENT, &idischarge);
-        axp192_read(AXP192_APS_VOLTAGE, &vaps);
-        axp192_read(AXP192_COULOMB_COUNTER, &cbat);
+        axp192_read(&axp, AXP192_ACIN_VOLTAGE, &vacin);
+        axp192_read(&axp, AXP192_ACIN_CURRENT, &iacin);
+        axp192_read(&axp, AXP192_VBUS_VOLTAGE, &vvbus);
+        axp192_read(&axp, AXP192_VBUS_CURRENT, &ivbus);
+        axp192_read(&axp, AXP192_TEMP, &temp);
+        axp192_read(&axp, AXP192_TS_INPUT, &vts);
+        axp192_read(&axp, AXP192_BATTERY_POWER, &pbat);
+        axp192_read(&axp, AXP192_BATTERY_VOLTAGE, &vbat);
+        axp192_read(&axp, AXP192_CHARGE_CURRENT, &icharge);
+        axp192_read(&axp, AXP192_DISCHARGE_CURRENT, &idischarge);
+        axp192_read(&axp, AXP192_APS_VOLTAGE, &vaps);
+        axp192_read(&axp, AXP192_COULOMB_COUNTER, &cbat);
 
         ESP_LOGI(TAG,
             "vacin: %.2fV iacin: %.2fA vvbus: %.2fV ivbus: %.2fA vts: %.2fV temp: %.0fC "
@@ -126,8 +128,8 @@ void log_task(void *params)
             vacin, iacin, vvbus, ivbus, vts, temp, pbat, vbat, icharge, idischarge, vaps, cbat
         );
 
-        axp192_ioctl(AXP192_READ_POWER_STATUS, &power);
-        axp192_ioctl(AXP192_READ_CHARGE_STATUS, &charge);
+        axp192_ioctl(&axp, AXP192_READ_POWER_STATUS, &power);
+        axp192_ioctl(&axp, AXP192_READ_CHARGE_STATUS, &charge);
         ESP_LOGI(TAG,
             "power: 0x%02x charge: 0x%02x",
             power, charge
@@ -160,13 +162,17 @@ void app_main()
     i2c_init();
 
     ESP_LOGI(TAG, "Initializing AXP192");
-    axp192_init(i2c_read, i2c_write);
-    axp192_ioctl(AXP192_COULOMB_COUNTER_ENABLE, NULL);
-    axp192_ioctl(AXP192_COULOMB_COUNTER_CLEAR, NULL);
+    axp.read = &i2c_read;
+    axp.write = &i2c_write;
+    axp192_init(&axp);
+    axp192_ioctl(&axp, AXP192_COULOMB_COUNTER_ENABLE, NULL);
+    axp192_ioctl(&axp, AXP192_COULOMB_COUNTER_CLEAR, NULL);
 
     ESP_LOGI(TAG, "Initializing BM8563");
-    bm8563_init(i2c_read, i2c_write);
-    bm8563_write(&rtc);
+    bm.read = &i2c_read;
+    bm.write = &i2c_write;
+    bm8563_init(&bm);
+    bm8563_write(&bm, &rtc);
 
     ESP_LOGI(TAG, "Initializing display");
     pod_init();
