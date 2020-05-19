@@ -23,19 +23,22 @@ SOFTWARE.
 
 */
 
+#include "sdkconfig.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
 #include <mipi_dcs.h>
 #include <mipi_display.h>
-#include <copepod.h>
-#include <copepod_hal.h>
+#include <hagl.h>
+#include <hagl_hal.h>
 #include <fps.h>
-#include <font8x8.h>
+#include <font6x9.h>
 #include <rgb565.h>
 #include <i2c_helper.h>
 #include <axp192.h>
@@ -43,7 +46,6 @@ SOFTWARE.
 
 #include "helpers/wifi.h"
 #include "helpers/nvs.h"
-#include "sdkconfig.h"
 
 static const char *TAG = "main";
 static float fb_fps;
@@ -67,7 +69,7 @@ void backbuffer_task(void *params)
     last = xTaskGetTickCount();
 
     while (1) {
-        pod_flush();
+        hagl_flush();
         fb_fps = fps();
         vTaskDelayUntil(&last, period);
     }
@@ -78,26 +80,28 @@ void backbuffer_task(void *params)
 void rtc_task(void *params)
 {
     uint16_t color = rgb565(0, 255, 0);
-    char message[128];
+    char16_t message[128];
 
     /* Calculate tm_yday for the first run. */
     mktime(&rtc);
 
     while (1) {
         bm8563_read(&bm, &rtc);
-        sprintf(
+        swprintf(
             message,
-            "%04d-%02d-%02d",
+            sizeof(message),
+            L"%04d-%02d-%02d",
             rtc.tm_year + 1900, rtc.tm_mon + 1, rtc.tm_mday
         );
-        pod_put_text(message, 40, 28, color, font8x8);
+        hagl_put_text(message, 40, 28, color, font6x9);
 
-        sprintf(
+        swprintf(
             message,
-            "%02d:%02d:%02d",
+            sizeof(message),
+            L"%02d:%02d:%02d",
             rtc.tm_hour, rtc.tm_min, rtc.tm_sec
         );
-        pod_put_text(message, 48, 38, color, font8x8);
+        hagl_put_text(message, 48, 38, color, font6x9);
 
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
@@ -178,7 +182,7 @@ void app_main()
     bm8563_write(&bm, &rtc);
 
     ESP_LOGI(TAG, "Initializing display");
-    pod_init();
+    hagl_init();
 
     ESP_LOGI(TAG, "Initializing non volatile storage");
     nvs_init();
@@ -188,7 +192,7 @@ void app_main()
 
     ESP_LOGI(TAG, "Heap after init: %d", esp_get_free_heap_size());
 
-    xTaskCreatePinnedToCore(rtc_task, "RTC", 2048, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(log_task, "Log", 4096, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(rtc_task, "RTC", 8192, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(log_task, "Log", 8192, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(backbuffer_task, "Backbuffer", 8192, NULL, 1, NULL, 0);
 }
