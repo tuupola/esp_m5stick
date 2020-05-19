@@ -158,6 +158,8 @@ void app_main()
     ESP_LOGI(TAG, "SDK version: %s", esp_get_idf_version());
     ESP_LOGI(TAG, "Heap when starting: %d", esp_get_free_heap_size());
 
+    static i2c_port_t i2c_port = I2C_NUM_0;
+
     rtc.tm_year = 2020 - 1900;
     rtc.tm_mon = 12 - 1;
     rtc.tm_mday = 31;
@@ -166,11 +168,13 @@ void app_main()
     rtc.tm_sec = 45;
 
     ESP_LOGI(TAG, "Initializing I2C");
-    i2c_init();
+    i2c_init(i2c_port);
 
     ESP_LOGI(TAG, "Initializing AXP192");
     axp.read = &i2c_read;
     axp.write = &i2c_write;
+    axp.handle = &i2c_port;
+
     axp192_init(&axp);
     axp192_ioctl(&axp, AXP192_COULOMB_COUNTER_ENABLE, NULL);
     axp192_ioctl(&axp, AXP192_COULOMB_COUNTER_CLEAR, NULL);
@@ -178,6 +182,8 @@ void app_main()
     ESP_LOGI(TAG, "Initializing BM8563");
     bm.read = &i2c_read;
     bm.write = &i2c_write;
+    bm.handle = &i2c_port;
+
     bm8563_init(&bm);
     bm8563_write(&bm, &rtc);
 
