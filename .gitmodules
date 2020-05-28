@@ -5,7 +5,7 @@
 	path = components/bm8563
 	url = git@github.com:tuupola/bm8563.git
 [submodule "components/hagl_esp_mipi"]
-	path = components/hagl_esp_mipi
+	path = components/hagl_hal
 	url = git@github.com:tuupola/hagl_esp_mipi.git
 [submodule "components/hagl"]
 	path = components/hagl
