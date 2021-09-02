@@ -82,7 +82,7 @@ void backbuffer_task(void *params)
 void rtc_task(void *params)
 {
     uint16_t color = rgb565(0, 255, 0);
-    char16_t message[128];
+    wchar_t message[128];
 
     /* Calculate tm_yday for the first run. */
     mktime(&rtc);
